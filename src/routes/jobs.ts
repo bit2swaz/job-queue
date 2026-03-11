@@ -30,19 +30,19 @@ function assertKnownQueue(queueName: string, res: Response): queueName is KnownQ
 }
 
 /** Build a BullMQ-compatible options object, omitting undefined fields. */
-function buildJobsOptions(opts: SubmitJobBody['opts']): JobsOptions {
-  if (!opts) {
-    return {};
-  }
+function buildJobsOptions(opts: SubmitJobBody['opts'], idempotencyKey?: string): JobsOptions {
   const result: JobsOptions = {};
-  if (opts.priority !== undefined) {
+  if (opts?.priority !== undefined) {
     result.priority = opts.priority;
   }
-  if (opts.delay !== undefined) {
+  if (opts?.delay !== undefined) {
     result.delay = opts.delay;
   }
-  if (opts.attempts !== undefined) {
+  if (opts?.attempts !== undefined) {
     result.attempts = opts.attempts;
+  }
+  if (idempotencyKey !== undefined) {
+    result.jobId = idempotencyKey;
   }
   return result;
 }
@@ -59,9 +59,9 @@ jobsRouter.post(
       return;
     }
 
-    const { data, opts } = req.body as SubmitJobBody;
+    const { data, opts, idempotencyKey } = req.body as SubmitJobBody;
     const q = getQueue(queueName);
-    const job = await q.add(queueName, data, buildJobsOptions(opts));
+    const job = await q.add(queueName, data, buildJobsOptions(opts, idempotencyKey));
 
     logger.info({ jobId: job.id, queue: queueName }, 'job submitted via API');
 

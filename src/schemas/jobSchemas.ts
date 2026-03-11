@@ -20,12 +20,16 @@ export const jobOptsSchema = z
 /**
  * Body schema for POST /jobs/:queue
  *
- * - `data`  — arbitrary job payload (required)
- * - `opts`  — optional scheduling overrides
+ * - `data`           — arbitrary job payload (required)
+ * - `opts`           — optional scheduling overrides
+ * - `idempotencyKey` — optional caller-supplied jobId; BullMQ will not create
+ *                      a duplicate if a job with this ID already exists in the
+ *                      queue.
  */
 export const submitJobSchema = z.object({
   data: z.record(z.string(), z.unknown()),
   opts: jobOptsSchema,
+  idempotencyKey: z.string().optional(),
 });
 
 export type SubmitJobBody = z.infer<typeof submitJobSchema>;

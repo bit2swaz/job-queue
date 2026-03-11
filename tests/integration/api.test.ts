@@ -121,4 +121,35 @@ describe('REST API — integration', () => {
       .send({ opts: { priority: 1 } });
     expect(res.status).toBe(422);
   });
+
+  // ── deduplication (idempotencyKey) — Phase 7.5 ────────────────────────────
+
+  it('submitting the same idempotencyKey twice returns the same jobId', async () => {
+    const key = `dedup-test-${Date.now()}`;
+
+    const first = await request(app)
+      .post('/jobs/email')
+      .set('Authorization', bearerToken())
+      .send({
+        data: { to: 'dup@example.com', subject: 'Dup', body: 'test' },
+        idempotencyKey: key,
+      });
+    expect(first.status).toBe(202);
+    const firstJobId = (first.body as { jobId: string }).jobId;
+    expect(firstJobId).toBe(key);
+
+    // Second submission with the same key must NOT create a new job.
+    const second = await request(app)
+      .post('/jobs/email')
+      .set('Authorization', bearerToken())
+      .send({
+        data: { to: 'dup2@example.com', subject: 'Dup2', body: 'test2' },
+        idempotencyKey: key,
+      });
+    expect(second.status).toBe(202);
+    const secondJobId = (second.body as { jobId: string }).jobId;
+
+    // BullMQ de-duplicates by jobId: same key → same job returned.
+    expect(secondJobId).toBe(firstJobId);
+  }, 15_000);
 });
