@@ -13,6 +13,7 @@ import { jwtMiddleware } from './auth/jwtMiddleware';
 import { issueToken } from './auth/tokenService';
 import { healthRouter } from './routes/health';
 import { jobsRouter } from './routes/jobs';
+import { metricsRouter } from './routes/metrics';
 import { logger } from './utils/logger';
 
 /** Requests allowed per minute before rate-limiting kicks in. */
@@ -40,6 +41,7 @@ export function createApp(): Express {
 
   // ── public routes ──────────────────────────────────────────────────────────
   app.use('/health', healthRouter);
+  app.use('/metrics', metricsRouter);
 
   // ── auth token issuance (no auth required) ────────────────────────────────
   app.post('/auth/token', (req: Request, res: Response) => {
