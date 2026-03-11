@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-test/
+
+# test output
+coverage/
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# typescript
+*.tsbuildinfo

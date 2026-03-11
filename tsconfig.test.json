@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "rootDir": ".",
+    "outDir": "./dist-test",
+    "paths": {
+      "@queues/*": ["./src/queues/*"],
+      "@workers/*": ["./src/workers/*"],
+      "@processors/*": ["./src/processors/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@services/*": ["./src/services/*"],
+      "@auth/*": ["./src/auth/*"],
+      "@observability/*": ["./src/observability/*"],
+      "@dashboard/*": ["./src/dashboard/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@config/*": ["./src/config/*"],
+      "@middleware/*": ["./src/middleware/*"],
+      "@schemas/*": ["./src/schemas/*"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", "dist-test"]
+}
