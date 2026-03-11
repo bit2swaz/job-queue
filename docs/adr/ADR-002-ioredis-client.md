@@ -1,23 +1,23 @@
-# ADR-002: Use ioredis as the Redis Client
+# adr-002: use ioredis as the redis client
 
-**Status:** Accepted  
-**Date:** 2026-03-12  
-**Deciders:** Project team
-
----
-
-## Context
-
-A Redis client library is required for both the BullMQ queue layer and the health-check endpoint. Node.js has two mainstream options:
-
-- **node-redis v4** (`redis`) — official Redis-sponsored client
-- **ioredis v5** — long-standing community client with cluster and sentinel support
+**status:** accepted
+**date:** 2026-03-12
+**deciders:** project team
 
 ---
 
-## Decision
+## context
 
-We chose **ioredis v5**.
+a redis client library is required for both the bullmq queue layer and the health-check endpoint. node.js has two mainstream options:
+
+- **node-redis v4** (`redis`) - official redis-sponsored client
+- **ioredis v5** - long-standing community client with cluster and sentinel support
+
+---
+
+## decision
+
+we chose **ioredis v5**.
 
 ---
 
@@ -38,17 +38,17 @@ Key `ioredis` behaviours we rely on:
 
 ---
 
-## Consequences
+## consequences
 
 - `ioredis` is a direct `dependency`, not a peer dependency.
-- The singleton is in `src/services/redisClient.ts`. All modules import `getRedisClient()`.
+- the singleton is in `src/services/redisClient.ts`. all modules import `getRedisClient()`.
 - `getRedisClient()` is called once at startup; subsequent calls return the same instance.
-- In tests, the singleton's `disconnect()` method is called in `afterAll` to release the connection and allow Jest to exit cleanly.
-- A future migration to Redis Cluster only requires changing the `RedisOptions` object in `redisClient.ts`; no other files change.
+- in tests, the singleton's `disconnect()` method is called in `afterAll` to release the connection and allow jest to exit cleanly.
+- a future migration to redis cluster only requires changing the `RedisOptions` object in `redisClient.ts`; no other files change.
 
 ---
 
-## Alternatives Rejected
+## alternatives rejected
 
-- **node-redis v4** — would require two separate Redis connection pools (ioredis for BullMQ + node-redis for app). Rejected on the grounds of unnecessary complexity and doubled connection overhead.
-- **BullMQ-managed connections only** — passing raw `RedisOptions` to BullMQ and not importing ioredis directly would lose the ability to share a connection for health checks and DLQ operations.
+- **node-redis v4** - would require two separate redis connection pools (ioredis for bullmq + node-redis for app). rejected on the grounds of unnecessary complexity and doubled connection overhead.
+- **bullmq-managed connections only** - passing raw `RedisOptions` to bullmq and not importing ioredis directly would lose the ability to share a connection for health checks and dlq operations.

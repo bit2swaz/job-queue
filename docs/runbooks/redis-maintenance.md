@@ -1,75 +1,75 @@
-# Runbook: Redis Maintenance
+# runbook: redis maintenance
 
-**Audience:** SRE / Infrastructure engineer  
-**Last updated:** 2026-03-12  
-**Related:** `src/services/redisClient.ts`, [ADR-002](../adr/ADR-002-ioredis-client.md)
-
----
-
-## Overview
-
-This runbook covers planned Redis maintenance tasks: version upgrades, memory management, persistence configuration, and connection pool tuning.
+**audience:** sre / infrastructure engineer
+**last updated:** 2026-03-12
+**related:** `src/services/redisClient.ts`, [adr-002](../adr/ADR-002-ioredis-client.md)
 
 ---
 
-## Pre-maintenance checklist
+## overview
 
-Before any Redis operation that may cause downtime:
+this runbook covers planned redis maintenance tasks: version upgrades, memory management, persistence configuration, and connection pool tuning.
 
-- [ ] Alert the on-call rotation (see [incident-response.md](incident-response.md))
-- [ ] Confirm queue depths are low or jobs can tolerate delay:
+---
+
+## pre-maintenance checklist
+
+before any redis operation that may cause downtime:
+
+- [ ] alert the on-call rotation (see [incident-response.md](incident-response.md))
+- [ ] confirm queue depths are low or jobs can tolerate delay:
   ```bash
   curl http://localhost:3000/health | jq '.queues'
   ```
-- [ ] Notify consumers that the job system may be degraded
-- [ ] Take a Redis snapshot:
+- [ ] notify consumers that the job system may be degraded
+- [ ] take a redis snapshot:
   ```bash
   redis-cli BGSAVE
-  # Wait for background save to complete:
+  # wait for background save to complete:
   redis-cli LASTSAVE
   ```
 
 ---
 
-## Redis version upgrade
+## redis version upgrade
 
 ```bash
-# 1. Check current version
+# 1. check current version
 redis-cli INFO server | grep redis_version
 
-# 2. Pull new image (Docker)
+# 2. pull new image (docker)
 docker pull redis:7-alpine
 
-# 3. Stop the current Redis container (workers will queue locally and reconnect)
+# 3. stop the current redis container (workers will queue locally and reconnect)
 docker compose stop redis
 
-# 4. Start with new image
+# 4. start with new image
 docker compose up -d redis
 
-# 5. Verify connection
-docker compose exec redis redis-cli PING  # → PONG
+# 5. verify connection
+docker compose exec redis redis-cli PING  # -> PONG
 
-# 6. Confirm workers reconnect (check logs)
+# 6. confirm workers reconnect (check logs)
 docker compose logs worker --tail=20
 ```
 
-**Expected behaviour during downtime:**  
-ioredis retries connections with exponential backoff. Workers will stall on blocking commands; they will not crash. The API will return `503` from `/health` until Redis is back.
+**expected behaviour during downtime:**
+ioredis retries connections with exponential backoff. workers will stall on blocking commands; they will not crash. the api will return `503` from `/health` until redis is back.
 
 ---
 
-## Memory management
+## memory management
 
-### Check current memory usage
+### check current memory usage
 
 ```bash
 redis-cli INFO memory | grep used_memory_human
 redis-cli INFO memory | grep maxmemory
 ```
 
-### Set a memory limit (if not already set)
+### set a memory limit (if not already set)
 
-Edit `docker-compose.yml` or `redis.conf`:
+edit `docker-compose.yml` or `redis.conf`:
 
 ```yaml
 # docker-compose.yml
@@ -77,23 +77,23 @@ redis:
   command: redis-server --maxmemory 512mb --maxmemory-policy noeviction
 ```
 
-`noeviction` is the correct policy for a job queue — Redis will return an error on new writes rather than silently evicting job data.
+`noeviction` is the correct policy for a job queue - redis will return an error on new writes rather than silently evicting job data.
 
-### Inspect key counts
+### inspect key counts
 
 ```bash
-# Count BullMQ keys by queue
+# count bullmq keys by queue
 redis-cli --scan --pattern 'bull:*' | wc -l
 
-# Count by specific queue
+# count by specific queue
 redis-cli --scan --pattern 'bull:email:*' | wc -l
 ```
 
 ---
 
-## Persistence configuration
+## persistence configuration
 
-BullMQ jobs are stored in Redis. For production, enable **AOF (Append-Only File)** persistence:
+bullmq jobs are stored in redis. for production, enable **aof (append-only file)** persistence:
 
 ```ini
 # redis.conf
@@ -101,7 +101,7 @@ appendonly yes
 appendfsync everysec
 ```
 
-For a Docker deployment, mount the config:
+for a docker deployment, mount the config:
 
 ```yaml
 redis:
@@ -113,39 +113,39 @@ redis:
 
 ---
 
-## Flush all jobs (emergency only)
+## flush all jobs (emergency only)
 
-⚠️ **DESTRUCTIVE. Removes all jobs from all queues. Never run on production without explicit approval.**
+**destructive. removes all jobs from all queues. never run on production without explicit approval.**
 
 ```bash
-# Target only job-queue keys (safer than FLUSHALL)
+# target only job-queue keys (safer than FLUSHALL)
 redis-cli --scan --pattern 'bull:*' | xargs redis-cli DEL
 
-# Nuclear option (clears entire Redis instance — never do this in shared Redis)
+# nuclear option (clears entire redis instance - never do this in shared redis)
 # redis-cli FLUSHALL
 ```
 
 ---
 
-## Replication / High Availability
+## replication / high availability
 
-For production HA, switch from standalone Redis to **Redis Sentinel** or **Redis Cluster**:
+for production ha, switch from standalone redis to **redis sentinel** or **redis cluster**:
 
-1. Update `REDIS_URL` to `redis://sentinel-host:26379` (Sentinel) or `redis://cluster-node:7000` (Cluster)
-2. Update `getRedisClient()` in `src/services/redisClient.ts` to use `new Redis.Cluster([...nodes])` (see [ADR-002](../adr/ADR-002-ioredis-client.md))
-3. No other application code changes are required
+1. update `REDIS_URL` to `redis://sentinel-host:26379` (sentinel) or `redis://cluster-node:7000` (cluster)
+2. update `getRedisClient()` in `src/services/redisClient.ts` to use `new Redis.Cluster([...nodes])` (see [adr-002](../adr/ADR-002-ioredis-client.md))
+3. no other application code changes are required
 
 ---
 
-## Verify Redis health after maintenance
+## verify redis health after maintenance
 
 ```bash
-# API health check (includes Redis ping latency)
+# api health check (includes redis ping latency)
 curl http://localhost:3000/health | jq .
 
-# Worker reconnection
+# worker reconnection
 docker compose logs worker --tail=50 | grep -i "redis\|connect\|error"
 
-# Prometheus metrics (should resume scraping)
+# prometheus metrics (should resume scraping)
 curl http://localhost:3000/metrics | grep queue_waiting_jobs
 ```

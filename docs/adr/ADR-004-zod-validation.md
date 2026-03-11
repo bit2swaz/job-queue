@@ -1,35 +1,35 @@
-# ADR-004: Use Zod for Runtime Validation
+# adr-004: use zod for runtime validation
 
-**Status:** Accepted  
-**Date:** 2026-03-12  
-**Deciders:** Project team
-
----
-
-## Context
-
-The REST API accepts arbitrary JSON payloads from HTTP clients. TypeScript types are erased at runtime; there is no compile-time guarantee that incoming data matches the expected shape. We needed a runtime validation strategy.
+**status:** accepted
+**date:** 2026-03-12
+**deciders:** project team
 
 ---
 
-## Decision
+## context
 
-We use **Zod v3** for all request body validation.
+the rest api accepts arbitrary json payloads from http clients. typescript types are erased at runtime; there is no compile-time guarantee that incoming data matches the expected shape. we needed a runtime validation strategy.
 
 ---
 
-## Rationale
+## decision
 
-| Criterion                         | Zod | Joi                 | Yup     | class-validator      |
+we use **zod v3** for all request body validation.
+
+---
+
+## rationale
+
+| criterion                         | zod | joi                 | yup     | class-validator      |
 | --------------------------------- | --- | ------------------- | ------- | -------------------- |
-| TypeScript-first (inferred types) | ✅  | ❌ (separate types) | Partial | ❌ (decorator-based) |
+| typescript-first (inferred types) | ✅  | ❌ (separate types) | partial | ❌ (decorator-based) |
 | `z.infer<typeof schema>`          | ✅  | ❌                  | ❌      | ❌                   |
-| Zero dependencies                 | ✅  | ❌                  | ❌      | ❌                   |
-| Tree-shakeable                    | ✅  | ❌                  | ❌      | ❌                   |
-| Composable schema refinements     | ✅  | ✅                  | Partial | Limited              |
-| Discriminated unions              | ✅  | Limited             | Limited | Limited              |
+| zero dependencies                 | ✅  | ❌                  | ❌      | ❌                   |
+| tree-shakeable                    | ✅  | ❌                  | ❌      | ❌                   |
+| composable schema refinements     | ✅  | ✅                  | partial | limited              |
+| discriminated unions              | ✅  | limited             | limited | limited              |
 
-The key advantage of Zod is that **the schema is the single source of truth** for both runtime validation and TypeScript types. We write:
+the key advantage of zod is that **the schema is the single source of truth** for both runtime validation and typescript types. we write:
 
 ```typescript
 export const submitJobSchema = z.object({
@@ -41,32 +41,32 @@ export const submitJobSchema = z.object({
 export type SubmitJobBody = z.infer<typeof submitJobSchema>;
 ```
 
-The inferred `SubmitJobBody` type stays in sync with the schema automatically. No separate interface declaration, no drift.
+the inferred `SubmitJobBody` type stays in sync with the schema automatically. no separate interface declaration, no drift.
 
-### Integration with Express
+### integration with express
 
-The generic `validate(schema)` middleware factory in `src/middleware/validate.ts` wraps any Zod schema and returns a typed request body:
+the generic `validate(schema)` middleware factory in `src/middleware/validate.ts` wraps any zod schema and returns a typed request body:
 
 ```typescript
 router.post('/:queue', jwtMiddleware, validate(submitJobSchema), handler);
 ```
 
-If validation fails, the middleware returns a `400` response with a structured error list before the handler executes.
+if validation fails, the middleware returns a `400` response with a structured error list before the handler executes.
 
 ---
 
-## Consequences
+## consequences
 
-- All request schemas live in `src/schemas/jobSchemas.ts`.
-- Adding a new field requires updating only the Zod schema; TypeScript types update automatically.
-- Error messages from `ZodError.flatten()` are returned in the 400 response body.
-- Zod's `.parse()` method is used (throws on failure) rather than `.safeParse()` in the middleware, since the middleware already catches and converts the error.
-- We are on Zod v3. Zod v4 introduced breaking changes to the error API; a dedicated ADR update will be required before upgrading.
+- all request schemas live in `src/schemas/jobSchemas.ts`.
+- adding a new field requires updating only the zod schema; typescript types update automatically.
+- error messages from `ZodError.flatten()` are returned in the 400 response body.
+- zod's `.parse()` method is used (throws on failure) rather than `.safeParse()` in the middleware, since the middleware already catches and converts the error.
+- we are on zod v3. zod v4 introduced breaking changes to the error api; a dedicated adr update will be required before upgrading.
 
 ---
 
-## Alternatives Rejected
+## alternatives rejected
 
-- **Joi** — mature and feature-rich, but requires separate TypeScript type declarations that can drift from the schema.
-- **express-validator** — decorator/chain API is verbose; no automatic TypeScript inference.
-- **Manual type guards** — every endpoint would require bespoke guard functions; high maintenance burden.
+- **joi** - mature and feature-rich, but requires separate typescript type declarations that can drift from the schema.
+- **express-validator** - decorator/chain api is verbose; no automatic typescript inference.
+- **manual type guards** - every endpoint would require bespoke guard functions; high maintenance burden.

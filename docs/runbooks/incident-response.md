@@ -1,103 +1,103 @@
-# Runbook: Incident Response
+# runbook: incident response
 
-**Audience:** On-call engineer  
-**Last updated:** 2026-03-12  
-**Severity levels:** P1 (critical) · P2 (major) · P3 (minor)
+**audience:** on-call engineer
+**last updated:** 2026-03-12
+**severity levels:** p1 (critical) - p2 (major) - p3 (minor)
 
 ---
 
-## Quick-reference: Symptom → Action
+## quick-reference: symptom -> action
 
-| Symptom                                  | Likely cause                      | Runbook section                                 |
+| symptom                                  | likely cause                      | runbook section                                 |
 | ---------------------------------------- | --------------------------------- | ----------------------------------------------- |
-| `GET /health` returns non-200            | Redis down                        | [Redis outage](#redis-outage)                   |
-| Queue depth rising, no workers consuming | Workers crashed                   | [Workers not consuming](#workers-not-consuming) |
-| DLQ depth growing rapidly                | Processor bug or upstream failure | [DLQ spike](#dlq-spike)                         |
-| API returns 500 on job submission        | BullMQ enqueue error              | [API errors](#api-errors)                       |
-| `/metrics` returns stale data            | Prometheus scrape failing         | [Metrics not updating](#metrics-not-updating)   |
-| JWT errors on all requests               | Secret rotated / clock skew       | [Auth failures](#auth-failures)                 |
+| `GET /health` returns non-200            | redis down                        | [redis outage](#redis-outage)                   |
+| queue depth rising, no workers consuming | workers crashed                   | [workers not consuming](#workers-not-consuming) |
+| dlq depth growing rapidly                | processor bug or upstream failure | [dlq spike](#dlq-spike)                         |
+| api returns 500 on job submission        | bullmq enqueue error              | [api errors](#api-errors)                       |
+| `/metrics` returns stale data            | prometheus scrape failing         | [metrics not updating](#metrics-not-updating)   |
+| jwt errors on all requests               | secret rotated / clock skew       | [auth failures](#auth-failures)                 |
 
 ---
 
-## Redis Outage
+## redis outage
 
-**Severity:** P1 — blocks all job submission and consumption
+**severity:** p1 - blocks all job submission and consumption
 
-### Detect
+### detect
 
 ```bash
-# Health endpoint
+# health endpoint
 curl http://localhost:3000/health
 
-# Direct ping
+# direct ping
 redis-cli -u $REDIS_URL PING
 ```
 
-### Respond
+### respond
 
-1. Check Redis container/process status:
+1. check redis container/process status:
 
    ```bash
    docker compose ps redis
    docker compose logs redis --tail=50
    ```
 
-2. Restart Redis (if it crashed):
+2. restart redis (if it crashed):
 
    ```bash
    docker compose restart redis
    ```
 
-3. Verify workers reconnect (ioredis auto-reconnects):
+3. verify workers reconnect (ioredis auto-reconnects):
 
    ```bash
    docker compose logs worker --tail=20 | grep -i "connect"
    ```
 
-4. Check for data loss — compare `queue_waiting_jobs` to pre-outage baseline.
+4. check for data loss - compare `queue_waiting_jobs` to pre-outage baseline.
 
-5. If data is lost, check Redis AOF/RDB backups (see [redis-maintenance.md](redis-maintenance.md)).
+5. if data is lost, check redis aof/rdb backups (see [redis-maintenance.md](redis-maintenance.md)).
 
 ---
 
-## Workers Not Consuming
+## workers not consuming
 
-**Severity:** P2 — jobs queue up, no processing
+**severity:** p2 - jobs queue up, no processing
 
-### Detect
+### detect
 
 ```promql
-# Waiting jobs high, active jobs zero for > 2 min
+# waiting jobs high, active jobs zero for > 2 min
 queue_waiting_jobs > 100 AND jobs_active_current == 0
 ```
 
-### Respond
+### respond
 
-1. Check worker container status:
+1. check worker container status:
 
    ```bash
    docker compose ps worker
    docker compose logs worker --tail=50
    ```
 
-2. Look for OOM kills or fatal errors:
+2. look for oom kills or fatal errors:
 
    ```bash
    docker inspect <worker_container_id> | grep OOMKilled
    ```
 
-3. Restart workers:
+3. restart workers:
 
    ```bash
    docker compose restart worker
    ```
 
-4. If workers keep crashing, check for a bad job causing a processor panic:
-   - Inspect Bull-Board: `http://localhost:3000/admin/queues` → look for jobs that moved to `failed` immediately
-   - Check `jobs_failed_total` counter spike
-   - If a single job is crashing the worker process, delete or manually retry it via Bull-Board
+4. if workers keep crashing, check for a bad job causing a processor panic:
+   - inspect bull-board: `http://localhost:3000/admin/queues` -> look for jobs that moved to `failed` immediately
+   - check `jobs_failed_total` counter spike
+   - if a single job is crashing the worker process, delete or manually retry it via bull-board
 
-5. If the issue is a code bug, roll back the worker image:
+5. if the issue is a code bug, roll back the worker image:
    ```bash
    docker compose pull worker
    docker compose up -d worker
@@ -105,37 +105,37 @@ queue_waiting_jobs > 100 AND jobs_active_current == 0
 
 ---
 
-## DLQ Spike
+## dlq spike
 
-**Severity:** P2 — jobs permanently failing
+**severity:** p2 - jobs permanently failing
 
-### Detect
+### detect
 
 ```promql
 rate(jobs_failed_total[5m]) > 5
 queue_failed_jobs{queue="dlq"} > 50
 ```
 
-### Respond
+### respond
 
-1. Identify which queue is failing:
+1. identify which queue is failing:
 
    ```bash
    curl http://localhost:3000/metrics | grep jobs_failed_total
    ```
 
-2. Inspect a sample DLQ job for the error message (Bull-Board or API):
+2. inspect a sample dlq job for the error message (bull-board or api):
 
    ```bash
    curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/jobs/dlq/<jobId>
    ```
 
-3. Determine root cause:
-   - **Transient upstream failure** (email provider down, external API 429) → wait, then replay
-   - **Invalid payload** → fix the producer code, discard bad jobs
-   - **Code bug** → roll back the worker, fix, redeploy, replay
+3. determine root cause:
+   - **transient upstream failure** (email provider down, external api 429) -> wait, then replay
+   - **invalid payload** -> fix the producer code, discard bad jobs
+   - **code bug** -> roll back the worker, fix, redeploy, replay
 
-4. After fixing, replay affected jobs (see [dlq-recovery.md](dlq-recovery.md)):
+4. after fixing, replay affected jobs (see [dlq-recovery.md](dlq-recovery.md)):
    ```bash
    curl -XPOST http://localhost:3000/jobs/dlq/replay \
      -H "Authorization: Bearer $TOKEN" \
@@ -144,30 +144,30 @@ queue_failed_jobs{queue="dlq"} > 50
 
 ---
 
-## API Errors
+## api errors
 
-**Severity:** P2 — clients cannot submit jobs
+**severity:** p2 - clients cannot submit jobs
 
-### Detect
+### detect
 
-- HTTP 500 responses on `POST /jobs/:queue`
-- API container logs show unhandled exceptions
+- http 500 responses on `POST /jobs/:queue`
+- api container logs show unhandled exceptions
 
-### Respond
+### respond
 
-1. Check API logs:
+1. check api logs:
 
    ```bash
    docker compose logs api --tail=100
    ```
 
-2. Check Redis connectivity from the API container:
+2. check redis connectivity from the api container:
 
    ```bash
    docker compose exec api redis-cli -u $REDIS_URL PING
    ```
 
-3. Check for schema/validation issues — confirm the request body is correct:
+3. check for schema/validation issues - confirm the request body is correct:
 
    ```bash
    curl -v -XPOST http://localhost:3000/jobs/email \
@@ -176,84 +176,84 @@ queue_failed_jobs{queue="dlq"} > 50
      -d '{"data":{"to":"test@example.com","subject":"Test","body":"Hi"}}'
    ```
 
-4. Restart the API if necessary:
+4. restart the api if necessary:
    ```bash
    docker compose restart api
    ```
 
 ---
 
-## Metrics Not Updating
+## metrics not updating
 
-**Severity:** P3 — observability gap
+**severity:** p3 - observability gap
 
-### Detect
+### detect
 
-- Grafana/Prometheus shows stale data
+- grafana/prometheus shows stale data
 - `curl http://localhost:3000/metrics` returns unexpected values
 
-### Respond
+### respond
 
-1. Check Prometheus targets: `http://localhost:9090/targets`
+1. check prometheus targets: `http://localhost:9090/targets`
 
-2. Verify the API `/metrics` endpoint is reachable from the Prometheus container:
+2. verify the api `/metrics` endpoint is reachable from the prometheus container:
 
    ```bash
    docker compose exec prometheus wget -O- http://api:3000/metrics | head -20
    ```
 
-3. Check `queueScraper` is running (it logs at INFO level on start):
+3. check `queueScraper` is running (it logs at info level on start):
 
    ```bash
    docker compose logs api | grep scraper
    ```
 
-4. Restart the API if the scraper timer appears stuck:
+4. restart the api if the scraper timer appears stuck:
    ```bash
    docker compose restart api
    ```
 
 ---
 
-## Auth Failures
+## auth failures
 
-**Severity:** P2 if customer-facing; P3 internal
+**severity:** p2 if customer-facing; p3 internal
 
-### Detect
+### detect
 
-- All authenticated endpoints returning `401 Unauthorized`
-- JWT verification errors in API logs
+- all authenticated endpoints returning `401 Unauthorized`
+- jwt verification errors in api logs
 
-### Respond
+### respond
 
-1. Confirm `JWT_SECRET` env var is set correctly on the API container:
+1. confirm `JWT_SECRET` env var is set correctly on the api container:
 
    ```bash
    docker compose exec api printenv JWT_SECRET | wc -c
-   # Should be > 32 characters
+   # should be > 32 characters
    ```
 
-2. Check for clock skew between issuer and API (JWT `exp` claims):
+2. check for clock skew between issuer and api (jwt `exp` claims):
 
    ```bash
-   date   # on API host
-   # Compare with token issuer's clock
+   date   # on api host
+   # compare with token issuer's clock
    ```
 
-3. If the secret was rotated, existing tokens are invalid. Issue new tokens via `POST /auth/token`.
+3. if the secret was rotated, existing tokens are invalid. issue new tokens via `POST /auth/token`.
 
-4. If it is a clock skew issue, sync NTP:
+4. if it is a clock skew issue, sync ntp:
    ```bash
    timedatectl set-ntp true
    ```
 
 ---
 
-## Post-Incident Review
+## post-incident review
 
-Within 48 hours of any P1/P2 incident:
+within 48 hours of any p1/p2 incident:
 
-1. Write a postmortem in `docs/incidents/YYYY-MM-DD-<slug>.md`
-2. Answer: What happened? Why? How was it detected? How was it resolved? What would prevent recurrence?
-3. Create follow-up tasks for systemic fixes
-4. Update this runbook if the symptom/response steps were wrong or missing
+1. write a postmortem in `docs/incidents/YYYY-MM-DD-<slug>.md`
+2. answer: what happened? why? how was it detected? how was it resolved? what would prevent recurrence?
+3. create follow-up tasks for systemic fixes
+4. update this runbook if the symptom/response steps were wrong or missing

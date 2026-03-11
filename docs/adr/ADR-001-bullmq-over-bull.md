@@ -1,23 +1,23 @@
-# ADR-001: Use BullMQ Over Bull v3
+# adr-001: use bullmq over bull v3
 
-**Status:** Accepted  
-**Date:** 2026-03-12  
-**Deciders:** Project team
-
----
-
-## Context
-
-We needed a Redis-backed job queue library for Node.js. The two main options were:
-
-- **Bull v3** — the original, widely-used library (npm: `bull`)
-- **BullMQ v5** — a rewrite of Bull with TypeScript-first design (npm: `bullmq`)
+**status:** accepted
+**date:** 2026-03-12
+**deciders:** project team
 
 ---
 
-## Decision
+## context
 
-We chose **BullMQ v5**.
+we needed a redis-backed job queue library for node.js. the two main options were:
+
+- **bull v3** - the original, widely-used library (npm: `bull`)
+- **bullmq v5** - a rewrite of bull with typescript-first design (npm: `bullmq`)
+
+---
+
+## decision
+
+we chose **bullmq v5**.
 
 ---
 
@@ -38,17 +38,17 @@ BullMQ's first-party TypeScript types eliminate an entire class of `@types/*` dr
 
 ---
 
-## Consequences
+## consequences
 
-- We depend on BullMQ **v5.x** (pinned in `package.json`). Major-version upgrades require an explicit ADR update.
-- Bull v3 migration tooling is unnecessary.
-- We get `FlowProducer` and sandboxed processors for free should we need them.
-- BullMQ requires `maxRetriesPerRequest: null` on the ioredis client — this is set in `src/services/redisClient.ts`.
+- we depend on bullmq **v5.x** (pinned in `package.json`). major-version upgrades require an explicit adr update.
+- bull v3 migration tooling is unnecessary.
+- we get `FlowProducer` and sandboxed processors for free should we need them.
+- bullmq requires `maxRetriesPerRequest: null` on the ioredis client - this is set in `src/services/redisClient.ts`.
 
 ---
 
-## Alternatives Rejected
+## alternatives rejected
 
-- **Agenda** — MongoDB-backed; adds a second datastore dependency.
-- **node-resque** — Ruby Resque port; poor TypeScript support.
-- **pg-boss** — PostgreSQL-backed; unsuitable when Redis is already present.
+- **agenda** - mongodb-backed; adds a second datastore dependency.
+- **node-resque** - ruby resque port; poor typescript support.
+- **pg-boss** - postgresql-backed; unsuitable when redis is already present.

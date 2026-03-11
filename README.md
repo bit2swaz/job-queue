@@ -1,4 +1,4 @@
-# Job Queue & Worker System
+# job queue & worker system
 
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org)
@@ -6,144 +6,129 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)](docker/docker-compose.yml)
 
-A **production-grade background job processing system** built on [BullMQ](https://bullmq.io) and Redis 7. It supports priority queues, delayed jobs, exponential backoff retries, dead-letter queue routing, cron scheduling, a secured REST API, Prometheus metrics, and a real-time Bull-Board dashboard — all in strict TypeScript with 188 passing tests.
+a production-grade background job processing system built on [bullmq](https://bullmq.io) and redis 7. it supports priority queues, delayed jobs, exponential backoff retries, dead-letter queue routing, cron scheduling, a secured rest api, prometheus metrics, and a real-time bull-board dashboard - all in strict typescript with 188 passing tests.
 
 ---
 
-## Architecture
+## architecture
 
-```
-                    REST API
-                  (job submission)
-                       │
-                       ▼
-             ┌─────────────────┐
-             │   Job Router    │  POST /jobs/:queue
-             └────────┬────────┘
-                      │
-                      ▼
-             ┌─────────────────┐
-             │     BullMQ      │  Priority, delay, repeat, deduplication
-             │      Queue      │
-             └────────┬────────┘
-                      │
-             ┌────────┴────────┐
-             │                 │
-             ▼                 ▼
-     ┌──────────────┐  ┌──────────────┐
-     │   Worker 1   │  │   Worker N   │  Horizontal scaling
-     │  (process)   │  │  (process)   │
-     └──────┬───────┘  └──────┬───────┘
-            │                  │
-            ▼                  ▼
-     ┌─────────────────────────────┐
-     │          Redis 7            │  Job state machine
-     │  (queue, results, DLQ)      │
-     └─────────────────────────────┘
-            │
-            ▼
-     ┌─────────────┐    ┌───────────┐
-     │  Bull-Board │    │ Prometheus│
-     │ /admin/queues│    │  /metrics │
-     └─────────────┘    └───────────┘
+```mermaid
+graph TD
+    api["rest api<br/>job submission"]
+    router["job router<br/>POST /jobs/:queue"]
+    queue["bullmq queue<br/>priority · delay · repeat · dedup"]
+    w1["worker 1<br/>(process)"]
+    wn["worker n<br/>(process)"]
+    redis["redis 7<br/>queue · results · dlq"]
+    board["bull-board<br/>/admin/queues"]
+    prom["prometheus<br/>/metrics"]
+
+    api --> router
+    router --> queue
+    queue --> w1
+    queue --> wn
+    w1 --> redis
+    wn --> redis
+    redis --> board
+    redis --> prom
 ```
 
 ---
 
-## Prerequisites
+## prerequisites
 
-| Requirement | Version                         |
-| ----------- | ------------------------------- |
-| Node.js     | ≥ 20                            |
-| Redis       | ≥ 7                             |
-| Docker      | ≥ 24 (optional, for full stack) |
+| requirement | version                          |
+| ----------- | -------------------------------- |
+| node.js     | >= 20                            |
+| redis       | >= 7                             |
+| docker      | >= 24 (optional, for full stack) |
 
 ---
 
-## Quick Start
+## quick start
 
 ```bash
-# 1. Clone & install
+# 1. clone & install
 git clone https://github.com/bit2swaz/job-queue.git
 cd job-queue
 npm install
 
-# 2. Configure environment
+# 2. configure environment
 cp .env.example .env
-# Edit .env — at minimum set JWT_SECRET
+# edit .env - at minimum set JWT_SECRET
 
-# 3. Start Redis (Docker)
+# 3. start redis (docker)
 docker compose -f docker/docker-compose.test.yml up -d
 
-# 4. Start the API in dev mode
+# 4. start the api in dev mode
 npm run dev
 ```
 
-API will be available at `http://localhost:3000`.
+api will be available at `http://localhost:3000`.
 
 ---
 
-## Running Workers
+## running workers
 
-Workers run in a **separate process** from the API (independently scalable):
+workers run in a separate process from the api (independently scalable):
 
 ```bash
-# Dev
+# dev
 npm run start:worker
 
-# Production (Docker Compose — 3 replicas by default)
+# production (docker compose - 3 replicas by default)
 docker compose up worker
 
-# Scale to 5 replicas
+# scale to 5 replicas
 docker compose up --scale worker=5
 ```
 
 ---
 
-## Full Stack (Docker Compose)
+## full stack (docker compose)
 
 ```bash
-# Copy and edit env
+# copy and edit env
 cp .env.example .env
 
-# Build and start all services (API, 3x worker, Redis, Prometheus)
+# build and start all services (api, 3x worker, redis, prometheus)
 docker compose -f docker/docker-compose.yml up --build
 
-# Services:
-#   API         → http://localhost:3000
-#   Prometheus  → http://localhost:9090
-#   Redis       → localhost:6379
+# services:
+#   api         -> http://localhost:3000
+#   prometheus  -> http://localhost:9090
+#   redis       -> localhost:6379
 ```
 
 ---
 
-## API Reference
+## api reference
 
-| Method   | Endpoint           | Auth | Description                  |
+| method   | endpoint           | auth | description                  |
 | -------- | ------------------ | ---- | ---------------------------- |
-| `POST`   | `/auth/token`      | —    | Issue a JWT                  |
-| `POST`   | `/jobs/:queue`     | JWT  | Submit a job                 |
-| `GET`    | `/jobs/:queue/:id` | JWT  | Job status, progress, result |
-| `DELETE` | `/jobs/:queue/:id` | JWT  | Cancel a waiting/delayed job |
-| `GET`    | `/health`          | —    | Redis ping + queue depths    |
-| `GET`    | `/metrics`         | —    | Prometheus text metrics      |
-| `GET`    | `/admin/queues`    | JWT  | Bull-Board dashboard UI      |
+| `POST`   | `/auth/token`      | -    | issue a jwt                  |
+| `POST`   | `/jobs/:queue`     | jwt  | submit a job                 |
+| `GET`    | `/jobs/:queue/:id` | jwt  | job status, progress, result |
+| `DELETE` | `/jobs/:queue/:id` | jwt  | cancel a waiting/delayed job |
+| `GET`    | `/health`          | -    | redis ping + queue depths    |
+| `GET`    | `/metrics`         | -    | prometheus text metrics      |
+| `GET`    | `/admin/queues`    | jwt  | bull-board dashboard ui      |
 
-### Submit a Job
+### submit a job
 
 ```bash
-# Get a token
+# get a token
 TOKEN=$(curl -s -XPOST http://localhost:3000/auth/token \
   -H 'Content-Type: application/json' \
   -d '{"sub":"alice","role":"admin"}' | jq -r .token)
 
-# Submit an email job
+# submit an email job
 curl -XPOST http://localhost:3000/jobs/email \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"data":{"to":"alice@example.com","subject":"Hello","body":"World"}}'
 
-# Submit with options
+# submit with options
 curl -XPOST http://localhost:3000/jobs/email \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
@@ -154,33 +139,33 @@ curl -XPOST http://localhost:3000/jobs/email \
   }'
 ```
 
-### Known Queues
+### known queues
 
-| Queue    | Purpose                        | Default Attempts | Default Priority |
+| queue    | purpose                        | default attempts | default priority |
 | -------- | ------------------------------ | ---------------- | ---------------- |
-| `email`  | Transactional email delivery   | 3                | —                |
-| `report` | Long-running report generation | 5                | 10               |
-| `notify` | Push / webhook notifications   | 3                | —                |
-| `dlq`    | Dead-letter (auto-routed)      | 1                | —                |
+| `email`  | transactional email delivery   | 3                | -                |
+| `report` | long-running report generation | 5                | 10               |
+| `notify` | push / webhook notifications   | 3                | -                |
+| `dlq`    | dead-letter (auto-routed)      | 1                | -                |
 
 ---
 
-## Running Tests
+## running tests
 
 ```bash
-# All tests
+# all tests
 npm test
 
-# Unit tests only (no Redis required)
+# unit tests only (no redis required)
 npm run test:unit
 
-# Integration tests (requires Redis on localhost:6379)
+# integration tests (requires redis on localhost:6379)
 npm run test:integration
 
-# Coverage report
+# coverage report
 npm run test:coverage
 
-# CI: spin up Redis via Docker, then run integration tests
+# ci: spin up redis via docker, then run integration tests
 docker compose -f docker/docker-compose.test.yml up -d
 npm run test:integration
 docker compose -f docker/docker-compose.test.yml down
@@ -188,38 +173,38 @@ docker compose -f docker/docker-compose.test.yml down
 
 ---
 
-## Environment Variables
+## environment variables
 
-| Variable             | Type     | Default                  | Required | Description                           |
+| variable             | type     | default                  | required | description                           |
 | -------------------- | -------- | ------------------------ | -------- | ------------------------------------- |
-| `PORT`               | `number` | `3000`                   | No       | HTTP server port                      |
-| `REDIS_URL`          | `string` | `redis://localhost:6379` | No       | Redis connection URL                  |
-| `JWT_SECRET`         | `string` | —                        | **Yes**  | Secret for JWT signing/verification   |
-| `WORKER_CONCURRENCY` | `number` | `5`                      | No       | Default workers per queue             |
-| `NODE_ENV`           | `string` | `development`            | No       | `development` / `production` / `test` |
+| `PORT`               | `number` | `3000`                   | no       | http server port                      |
+| `REDIS_URL`          | `string` | `redis://localhost:6379` | no       | redis connection url                  |
+| `JWT_SECRET`         | `string` | -                        | **yes**  | secret for jwt signing/verification   |
+| `WORKER_CONCURRENCY` | `number` | `5`                      | no       | default workers per queue             |
+| `NODE_ENV`           | `string` | `development`            | no       | `development` / `production` / `test` |
 
 ---
 
-## Project Structure
+## project structure
 
 ```
 src/
-├── app.ts                    # Express app factory (testable, no listen)
-├── index.ts                  # HTTP server entry point
-├── worker.ts                 # Worker process entry point
+├── app.ts                    # express app factory (testable, no listen)
+├── index.ts                  # http server entry point
+├── worker.ts                 # worker process entry point
 ├── auth/
-│   ├── jwtMiddleware.ts      # JWT verification middleware
-│   └── tokenService.ts       # JWT issuance
+│   ├── jwtMiddleware.ts      # jwt verification middleware
+│   └── tokenService.ts       # jwt issuance
 ├── config/
-│   └── workers.ts            # Concurrency + rate limiter config
+│   └── workers.ts            # concurrency + rate limiter config
 ├── dashboard/
-│   └── board.ts              # Bull-Board setup
+│   └── board.ts              # bull-board setup
 ├── middleware/
-│   └── validate.ts           # Zod body validation factory
+│   └── validate.ts           # zod body validation factory
 ├── observability/
-│   ├── metrics.ts            # Prometheus registry + metric definitions
-│   ├── workerMetrics.ts      # Worker event → metric hooks
-│   └── queueScraper.ts       # Periodic queue depth scraper
+│   ├── metrics.ts            # prometheus registry + metric definitions
+│   ├── workerMetrics.ts      # worker event -> metric hooks
+│   └── queueScraper.ts       # periodic queue depth scraper
 ├── processors/
 │   ├── base.ts               # BaseProcessor interface
 │   ├── emailProcessor.ts
@@ -228,26 +213,26 @@ src/
 │   ├── validators.ts
 │   └── errors.ts
 ├── queues/
-│   ├── queueManager.ts       # BullMQ Queue factory + registry
-│   ├── queues.ts             # Named queue singletons
+│   ├── queueManager.ts       # bullmq queue factory + registry
+│   ├── queues.ts             # named queue singletons
 │   ├── queueUtils.ts
-│   └── scheduledJobs.ts      # Cron scheduling helpers
+│   └── scheduledJobs.ts      # cron scheduling helpers
 ├── routes/
 │   ├── health.ts
 │   ├── jobs.ts
 │   └── metrics.ts
 ├── schemas/
-│   └── jobSchemas.ts         # Zod schemas for job submission
+│   └── jobSchemas.ts         # zod schemas for job submission
 ├── services/
 │   ├── redisClient.ts        # ioredis singleton
 │   ├── redisHealth.ts
-│   ├── deadLetterService.ts  # DLQ routing + replay
+│   ├── deadLetterService.ts  # dlq routing + replay
 │   └── alertService.ts
 ├── utils/
 │   ├── logger.ts             # pino logger singleton
-│   └── shutdown.ts           # Graceful shutdown handler
+│   └── shutdown.ts           # graceful shutdown handler
 └── workers/
-    ├── workerManager.ts      # Worker factory
+    ├── workerManager.ts      # worker factory
     ├── emailWorker.ts
     ├── reportWorker.ts
     └── notifyWorker.ts
@@ -255,18 +240,18 @@ src/
 
 ---
 
-## Key Design Decisions
+## key design decisions
 
-See [`docs/adr/`](docs/adr/) for full Architecture Decision Records.
+see [`docs/adr/`](docs/adr/) for full architecture decision records.
 
-- **BullMQ over Bull v3** — TypeScript-first, active maintenance, Redis Streams
-- **ioredis** — BullMQ's recommended client, better reconnect handling
-- **Separate API/Worker processes** — independent scaling and failure isolation
-- **Zod validation** — runtime type safety with TypeScript inference
-- **Pure processor functions** — no BullMQ coupling in business logic
+- **bullmq over bull v3** - typescript-first, active maintenance, redis streams
+- **ioredis** - bullmq's recommended client, better reconnect handling
+- **separate api/worker processes** - independent scaling and failure isolation
+- **zod validation** - runtime type safety with typescript inference
+- **pure processor functions** - no bullmq coupling in business logic
 
 ---
 
-## Contributing
+## contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+see [CONTRIBUTING.md](CONTRIBUTING.md).
