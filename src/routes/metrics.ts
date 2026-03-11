@@ -10,6 +10,22 @@ import { register } from '../observability/metrics';
 
 export const metricsRouter = Router();
 
+/**
+ * @openapi
+ * /metrics:
+ *   get:
+ *     summary: Prometheus metrics
+ *     description: Returns all collected metrics in Prometheus text exposition format.
+ *     tags: [System]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Prometheus text format
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ */
 metricsRouter.get('/', async (_req: Request, res: Response): Promise<void> => {
   const metrics = await register.metrics();
   res.set('Content-Type', register.contentType);

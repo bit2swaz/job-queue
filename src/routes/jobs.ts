@@ -49,6 +49,48 @@ function buildJobsOptions(opts: SubmitJobBody['opts'], idempotencyKey?: string):
 
 // ── POST /jobs/:queue ─────────────────────────────────────────────────────────
 
+/**
+ * @openapi
+ * /jobs/{queue}:
+ *   post:
+ *     summary: Submit a job to a queue
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [email, report, notify, dlq]
+ *         description: Target queue name
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SubmitJobBody'
+ *     responses:
+ *       202:
+ *         description: Job accepted and queued
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 jobId: { type: string }
+ *                 queue: { type: string }
+ *                 status: { type: string, example: queued }
+ *       400:
+ *         description: Validation error or unknown queue
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Missing or invalid JWT
+ */
 jobsRouter.post(
   '/:queue',
   validateBody(submitJobSchema),
@@ -75,6 +117,78 @@ jobsRouter.post(
 
 // ── GET /jobs/:queue/:id ──────────────────────────────────────────────────────
 
+/**
+ * @openapi
+ * /jobs/{queue}/{id}:
+ *   get:
+ *     summary: Get job status
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Job details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/JobStatus'
+ *       404:
+ *         description: Job not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Missing or invalid JWT
+ *   delete:
+ *     summary: Cancel a waiting or delayed job
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: queue
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Job cancelled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 jobId: { type: string }
+ *                 queue: { type: string }
+ *                 cancelled: { type: boolean }
+ *       404:
+ *         description: Job not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Job cannot be cancelled in its current state
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Missing or invalid JWT
+ */
 jobsRouter.get('/:queue/:id', async (req: Request, res: Response): Promise<void> => {
   const queueName = req.params['queue'] as string;
   const jobId = req.params['id'] as string;

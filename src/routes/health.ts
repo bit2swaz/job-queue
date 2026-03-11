@@ -12,6 +12,43 @@ import { KNOWN_QUEUES } from '../workers/workerManager';
 
 export const healthRouter = Router();
 
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     summary: Health check
+ *     description: Verifies Redis connectivity and returns per-queue job counts.
+ *     tags: [System]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 redis:
+ *                   type: string
+ *                   example: ok
+ *                 queues:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: object
+ *                     properties:
+ *                       waiting: { type: integer }
+ *                       active: { type: integer }
+ *                       failed: { type: integer }
+ *       503:
+ *         description: Redis unreachable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 healthRouter.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
     // verify redis is reachable

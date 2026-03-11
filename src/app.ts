@@ -14,6 +14,7 @@ import { issueToken } from './auth/tokenService';
 import { healthRouter } from './routes/health';
 import { jobsRouter } from './routes/jobs';
 import { metricsRouter } from './routes/metrics';
+import { apiDocsRouter } from './routes/apiDocs';
 import { serverAdapter } from './dashboard/board';
 import { logger } from './utils/logger';
 
@@ -56,6 +57,11 @@ export function createApp(): Express {
   // ── protected routes ───────────────────────────────────────────────────────
   app.use('/jobs', jwtMiddleware, jobsRouter);
   app.use('/admin/queues', jwtMiddleware, serverAdapter.getRouter());
+
+  // ── API docs (development only) ───────────────────────────────────────────
+  if (process.env['NODE_ENV'] !== 'production') {
+    app.use('/', apiDocsRouter);
+  }
 
   // ── 404 handler ───────────────────────────────────────────────────────────
   app.use((_req: Request, res: Response) => {
