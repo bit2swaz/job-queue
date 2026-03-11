@@ -74,6 +74,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@bull-board/api": "^6.20.3",
+    "@bull-board/express": "^6.20.3",
     "bullmq": "^5.70.4",
     "cors": "^2.8.6",
     "express": "^5.2.1",

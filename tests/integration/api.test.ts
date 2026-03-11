@@ -152,4 +152,17 @@ describe('REST API — integration', () => {
     // BullMQ de-duplicates by jobId: same key → same job returned.
     expect(secondJobId).toBe(firstJobId);
   }, 15_000);
+
+  // ── Bull-Board dashboard — Phase 9 ────────────────────────────────────────
+
+  it('GET /admin/queues without JWT returns 401', async () => {
+    const res = await request(app).get('/admin/queues');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /admin/queues with valid JWT returns 200 HTML', async () => {
+    const res = await request(app).get('/admin/queues').set('Authorization', bearerToken());
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/html/);
+  });
 });
