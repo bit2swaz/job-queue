@@ -1,0 +1,19 @@
+# CI-only Compose override — Redis only.
+# Used by the CI pipeline to spin up a real Redis for integration tests
+# without building or starting the API or worker services.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.test.yml up -d
+#   npm run test:integration
+#   docker compose -f docker/docker-compose.test.yml down
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5

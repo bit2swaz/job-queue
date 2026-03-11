@@ -1,0 +1,25 @@
+# ── Stage 1: builder ──────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY tsconfig.json tsconfig.build.json ./
+COPY src/ ./src/
+RUN npm run build
+
+# ── Stage 2: runner ───────────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+
+USER node
+
+WORKDIR /app
+
+COPY --chown=node:node package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder --chown=node:node /app/dist ./dist
+
+CMD ["node", "dist/worker.js"]
